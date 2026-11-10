@@ -1,0 +1,23 @@
+configuration:
+  kodi_host:
+    name: OSMC host
+    description: IP address or hostname of your OSMC box (a fixed IP is most reliable).
+  kodi_port:
+    name: Kodi JSON-RPC websocket port
+    description: Usually 9090. Requires "Allow remote control from applications on other systems" in Kodi.
+  poll_interval:
+    name: Poll interval (seconds)
+    description: How often to check position. Play/pause/stop events are picked up instantly regardless.
+  min_session_seconds:
+    name: Minimum session length (seconds)
+    description: Plays shorter than this (e.g. skipping through files) are not recorded.
+  completed_percent:
+    name: Completed threshold (%)
+    description: A session reaching this far through is marked as finished.
+  publish_sensors:
+    name: Publish sensors to Home Assistant
+  entity_prefix:
+    name: Entity prefix
+    description: Sensors are created as sensor.<prefix>_now_playing etc.
+  log_level:
+    name: Log level

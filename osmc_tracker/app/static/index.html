@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OSMC Watch Tracker</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --text: #1c1f24; --muted: #6b7280; --line: #e5e7eb;
+    --accent: #2f7de1; --accent-soft: #dbe8fb; --ok: #1f9d55; --warn: #c27c0e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111418; --card: #1b1f25; --text: #e7e9ec; --muted: #9aa3ad; --line: #2b3038;
+            --accent: #5b9bf0; --accent-soft: #1f3350; --ok: #3cc47c; --warn: #e3a33a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  nav { display: flex; gap: 4px; }
+  nav button, .seg button { border: 0; background: transparent; color: var(--muted); padding: 6px 12px;
+         border-radius: 6px; cursor: pointer; font: inherit; }
+  nav button.on, .seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .seg { margin-left: auto; display: flex; gap: 2px; }
+  main { padding: 0 20px 30px; max-width: 1200px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .grid { display: grid; gap: 14px; }
+  .g4 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+       margin: 0 0 10px; font-weight: 600; }
+  .big { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .sub { color: var(--muted); font-size: 12px; }
+  #now { display: flex; gap: 16px; align-items: center; margin-bottom: 14px; }
+  #now .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  #now.playing .dot { background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 25%, transparent); }
+  #now.paused .dot { background: var(--warn); }
+  #now .t { font-size: 17px; font-weight: 600; }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+  svg text { fill: var(--muted); font-size: 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  .pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 10px;
+          background: var(--accent-soft); color: var(--accent); }
+  .tick { color: var(--ok); font-weight: 700; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  input, select, .btn { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line);
+          background: var(--card); color: var(--text); }
+  .btn { cursor: pointer; text-decoration: none; }
+  .del { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 16px; }
+  .del:hover { color: #d33; }
+  .empty { color: var(--muted); padding: 10px 0; }
+  .hidden { display: none; }
+  .mt { margin-top: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>OSMC Watch Tracker</h1>
+  <nav><button data-tab="overview" class="on">Overview</button><button data-tab="history">History</button></nav>
+  <div class="seg" id="range">
+    <button data-d="1">Today</button><button data-d="7">7d</button>
+    <button data-d="30" class="on">30d</button><button data-d="365">1y</button><button data-d="3650">All</button>
+  </div>
+</header>
+<main>
+  <div id="now" class="card"><span class="dot"></span><div style="flex:1;min-width:0">
+    <div class="t" id="nowTitle">…</div><div class="sub" id="nowSub"></div>
+    <div class="bar hidden" id="nowBar"><i></i></div></div></div>
+
+  <section id="overview">
+    <div class="grid g4">
+      <div class="card"><h2>Watch time</h2><div class="big" id="tTime">–</div><div class="sub" id="tAvg"></div></div>
+      <div class="card"><h2>Sessions</h2><div class="big" id="tSess">–</div><div class="sub" id="tDone"></div></div>
+      <div class="card"><h2>By type</h2><div id="tTypes" class="sub"></div></div>
+    </div>
+    <div class="card mt"><h2>Daily watch time</h2><div id="daily"></div></div>
+    <div class="grid g2 mt">
+      <div class="card"><h2>Top shows</h2><div id="shows"></div></div>
+      <div class="card"><h2>Movies</h2><div id="movies"></div></div>
+      <div class="card"><h2>Time of day</h2><div id="hourly"></div></div>
+      <div class="card" id="musicCard"><h2>Top artists</h2><div id="music"></div></div>
+    </div>
+  </section>
+
+  <section id="history" class="hidden">
+    <div class="toolbar">
+      <input id="q" placeholder="Search…" style="flex:1;min-width:160px">
+      <select id="ftype"><option value="">All types</option><option value="episode">Episodes</option>
+        <option value="movie">Movies</option><option value="song">Music</option>
+        <option value="channel">Live TV</option><option value="unknown">Other</option></select>
+      <a class="btn" href="api/export.csv">Export CSV</a>
+    </div>
+    <div class="card"><table><thead><tr><th>When</th><th>Title</th><th class="n">Watched</th>
+      <th class="n">Progress</th><th></th></tr></thead><tbody id="hist"></tbody></table>
+      <div class="toolbar mt" style="justify-content:space-between;margin-bottom:0">
+        <button class="btn" id="prev">← Newer</button><span class="sub" id="pageInfo"></span>
+        <button class="btn" id="next">Older →</button></div></div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const dur = s => { s = Math.round(s || 0); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+  return h ? `${h}h ${m}m` : m ? `${m}m` : `${s}s`; };
+const clock = s => { s = Math.round(s || 0); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+  return (h ? h + ":" + String(m).padStart(2,"0") : m) + ":" + String(x).padStart(2,"0"); };
+const when = t => new Date(t * 1000).toLocaleString([], {weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"});
+const TYPES = {episode:"Episodes", movie:"Movies", song:"Music", channel:"Live TV", musicvideo:"Music videos", unknown:"Other"};
+let days = 30, page = 0; const PAGE = 50;
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  $("#overview").classList.toggle("hidden", b.dataset.tab !== "overview");
+  $("#history").classList.toggle("hidden", b.dataset.tab !== "history");
+  $("#range").classList.toggle("hidden", b.dataset.tab !== "overview");
+  if (b.dataset.tab === "history") loadHistory();
+});
+document.querySelectorAll("#range button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#range button").forEach(x => x.classList.toggle("on", x === b));
+  days = +b.dataset.d; loadStats();
+});
+
+async function loadNow() {
+  try {
+    const n = await (await fetch("api/now")).json();
+    $("#now").className = "card " + n.state;
+    if (n.display) {
+      $("#nowTitle").textContent = n.display;
+      const pos = n.duration ? `${clock(n.end_position)} / ${clock(n.duration)}` : clock(n.end_position);
+      $("#nowSub").textContent = `${n.state === "paused" ? "Paused" : "Playing"} · ${pos} · this session ${dur(n.watched_seconds)}`
+        + (n.pauses ? ` · ${n.pauses} pause${n.pauses > 1 ? "s" : ""}` : "");
+      $("#nowBar").classList.remove("hidden");
+      $("#nowBar i").style.width = (n.percent || 0) + "%";
+    } else {
+      $("#nowTitle").textContent = n.state === "disconnected" ? "OSMC not reachable" : "Nothing playing";
+      $("#nowSub").textContent = n.state === "disconnected" ? `Trying ${n.kodi}` : "Idle";
+      $("#nowBar").classList.add("hidden");
+    }
+  } catch (e) { $("#nowTitle").textContent = "Tracker not responding"; }
+}
+
+function barChart(el, items, label, value, fmtTip, opts = {}) {
+  if (!items.length) { el.innerHTML = '<div class="empty">No data yet</div>'; return; }
+  const W = Math.max(el.clientWidth || 800, 200), H = opts.h || 160, pad = 18, max = Math.max(...items.map(value)) || 1;
+  const bw = (W - 10) / items.length, every = Math.ceil(items.length / Math.min(opts.labels || 15, W / 55));
+  let s = `<svg viewBox="0 0 ${W} ${H + pad}" width="100%" style="height:${H + pad}px">`;
+  items.forEach((it, i) => {
+    const h = Math.max(value(it) / max * (H - 6), value(it) ? 2 : 0), x = 5 + i * bw;
+    s += `<rect x="${x + bw * .12}" y="${H - h}" width="${bw * .76}" height="${h}" rx="2" fill="var(--accent)"><title>${esc(fmtTip(it))}</title></rect>`;
+    if (i % every === 0) s += `<text x="${x + bw / 2}" y="${H + 13}" text-anchor="middle">${esc(label(it))}</text>`;
+  });
+  el.innerHTML = s + "</svg>";
+}
+
+function fillDays(rows) {
+  const map = Object.fromEntries(rows.map(r => [r.day, r])), out = [];
+  const span = Math.min(days, rows.length ? Math.ceil((Date.now() - new Date(rows[0].day)) / 864e5) + 1 : days);
+  for (let i = span - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 864e5), k = d.toLocaleDateString("en-CA");
+    out.push(map[k] || {day: k, seconds: 0, sessions: 0});
+  }
+  return out;
+}
+
+function table(el, rows, cols) {
+  if (!rows.length) { el.innerHTML = '<div class="empty">Nothing yet</div>'; return; }
+  el.innerHTML = `<table><thead><tr>${cols.map(c => `<th class="${c.n ? "n" : ""}">${c.h}</th>`).join("")}</tr></thead><tbody>`
+    + rows.map(r => `<tr>${cols.map(c => `<td class="${c.n ? "n" : ""}">${c.f(r)}</td>`).join("")}</tr>`).join("") + "</tbody></table>";
+}
+
+async function loadStats() {
+  const s = await (await fetch(`api/stats?days=${days}`)).json();
+  $("#tTime").textContent = dur(s.totals.seconds);
+  const d = fillDays(s.daily), span = Math.max(d.length, 1);
+  $("#tAvg").textContent = days > 1 ? `${dur(s.totals.seconds / span)} per day` : "";
+  $("#tSess").textContent = s.totals.sessions;
+  $("#tDone").textContent = `${s.totals.completed} finished`;
+  $("#tTypes").innerHTML = s.by_type.map(t => `<div><b style="color:var(--text)">${dur(t.seconds)}</b> ${esc(TYPES[t.media_type] || t.media_type)} (${t.sessions})</div>`).join("") || "–";
+  barChart($("#daily"), d, r => new Date(r.day).toLocaleDateString([], {day: "numeric", month: "short"}),
+    r => r.seconds, r => `${r.day}: ${dur(r.seconds)} (${r.sessions} sessions)`);
+  const hrs = Array.from({length: 24}, (_, h) => s.hourly.find(r => r.hour === h) || {hour: h, seconds: 0});
+  barChart($("#hourly"), hrs, r => String(r.hour).padStart(2, "0"), r => r.seconds,
+    r => `${String(r.hour).padStart(2, "0")}:00 – ${dur(r.seconds)}`, {h: 120, labels: 8});
+  table($("#shows"), s.shows, [
+    {h: "Show", f: r => esc(r.name)}, {h: "Episodes", n: 1, f: r => r.episodes},
+    {h: "Time", n: 1, f: r => dur(r.seconds)}]);
+  table($("#movies"), s.movies, [
+    {h: "Movie", f: r => esc(r.name) + (r.completed ? ' <span class="tick">✓</span>' : "")},
+    {h: "Seen", n: 1, f: r => Math.round(r.percent || 0) + "%"}, {h: "Time", n: 1, f: r => dur(r.seconds)}]);
+  $("#musicCard").classList.toggle("hidden", !s.music.length);
+  table($("#music"), s.music, [{h: "Artist", f: r => esc(r.name)}, {h: "Plays", n: 1, f: r => r.sessions},
+    {h: "Time", n: 1, f: r => dur(r.seconds)}]);
+}
+
+async function loadHistory() {
+  const p = new URLSearchParams({limit: PAGE, offset: page * PAGE, q: $("#q").value, type: $("#ftype").value});
+  const h = await (await fetch("api/history?" + p)).json();
+  $("#hist").innerHTML = h.rows.map(r => `<tr>
+    <td class="sub" style="white-space:nowrap">${when(r.started_at)}${r.ended_at ? "" : ' <span class="pill">live</span>'}</td>
+    <td>${esc(r.display)} <span class="pill">${esc(TYPES[r.media_type] || r.media_type)}</span>
+      ${r.pauses ? `<div class="sub">${r.pauses} pause${r.pauses > 1 ? "s" : ""}</div>` : ""}</td>
+    <td class="n">${dur(r.watched_seconds)}</td>
+    <td class="n">${Math.round(r.max_percent || 0)}%${r.completed ? ' <span class="tick">✓</span>' : ""}</td>
+    <td class="n">${r.ended_at ? `<button class="del" title="Delete" data-id="${r.id}">×</button>` : ""}</td></tr>`).join("")
+    || '<tr><td colspan="5" class="empty">No sessions</td></tr>';
+  $("#pageInfo").textContent = h.total ? `${page * PAGE + 1}–${Math.min((page + 1) * PAGE, h.total)} of ${h.total}` : "";
+  $("#prev").disabled = page === 0; $("#next").disabled = (page + 1) * PAGE >= h.total;
+}
+$("#hist").onclick = async e => {
+  const id = e.target.dataset?.id; if (!id || !confirm("Delete this session?")) return;
+  await fetch(`api/history/${id}`, {method: "DELETE"}); loadHistory(); loadStats();
+};
+let qt; $("#q").oninput = () => { clearTimeout(qt); qt = setTimeout(() => { page = 0; loadHistory(); }, 250); };
+$("#ftype").onchange = () => { page = 0; loadHistory(); };
+$("#prev").onclick = () => { page--; loadHistory(); };
+$("#next").onclick = () => { page++; loadHistory(); };
+
+loadNow(); loadStats();
+setInterval(loadNow, 5000);
+setInterval(() => { if (!$("#overview").classList.contains("hidden")) loadStats(); }, 60000);
+</script>
+</body>
+</html>
